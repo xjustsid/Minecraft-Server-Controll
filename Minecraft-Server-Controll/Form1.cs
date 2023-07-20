@@ -797,9 +797,16 @@ max_backup_count=5";
 
         private void button11_Click(object sender, EventArgs e)
         {
-            DeleteOldBackups("world_backup", maxBackupCount);
-            DeleteOldBackups("logs_backup", maxBackupCount);
-        }
+            if (Directory.Exists(backupFolderPath))
+            {
+                Process.Start("explorer.exe", backupFolderPath);
+            }
+            else
+            {
+                MessageBox.Show("Der 'MCC_Backup'-Ordner existiert nicht.");
+            }
+        
+    }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
