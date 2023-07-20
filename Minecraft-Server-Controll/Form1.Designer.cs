@@ -265,7 +265,7 @@
             Controls.Add(textBox2);
             Controls.Add(button1);
             Name = "Form1";
-            Text = "Form1";
+            Text = "MineServer Controll";
             Load += Form1_Load;
             ResumeLayout(false);
             PerformLayout();

@@ -27,9 +27,11 @@ namespace Minecraft_Server_Controll
         private System.Timers.Timer restartTimer;
         private bool programStarted = false;
         private bool backupInProgress = false;
+
         private bool IsServerRunning()
         {
             return process != null && !process.HasExited;
+
         }
 
         public Form1()
@@ -40,7 +42,6 @@ namespace Minecraft_Server_Controll
         }
 
 
-
         private void Form1_Load(object sender, EventArgs e)
         {
             programStarted = true;
@@ -48,40 +49,14 @@ namespace Minecraft_Server_Controll
             // Rufe die Methode UpdateNextRestartTime() auf, um die Zeit im Label zu aktualisieren
             UpdateNextRestartTime();
 
-            // Starte den AutoSave-Timer
-            StartAutoSaveTimer();
+            // Starte die automatische Sicherung und den Neustart
+            nextAutoBackup();
         }
-
-        // Methode, um die nächste geplante Neustartzeit zu aktualisieren und im Label anzuzeigen
-        private void UpdateNextRestartTime()
-        {
-            DateTime nextRestartTime = GetNextRestartTime();
-
-            if (!autoSaveEnabled)
-            {
-                labelNextRestart.Text = "Nächste geplante Neustartzeit: AutoSave deaktiviert";
-                label2.Text = "Nächste geplante Neustartzeit: AutoSave deaktiviert";
-                return;
-            }
-
-            if (autoRestartType.ToLower() == "interval")
-            {
-                // Aktualisiere die nächste Neustartzeit basierend auf dem aktuellen Zeitpunkt und dem Neustellintervall
-                DateTime nextRestart = DateTime.Now.AddHours(restartInterval);
-                labelNextRestart.Text = "Nächste geplante Neustartzeit: Interval= " + nextRestart.ToString("HH:mm");
-                label2.Text = "Nächste geplante Neustartzeit: Interval= " + nextRestart.ToString("HH:mm");
-            }
-            else if (autoRestartType.ToLower() == "time")
-            {
-                labelNextRestart.Text = "Nächste geplante Neustartzeit: Zeit= " + nextRestartTime.ToString("HH:mm");
-                label2.Text = "Nächste geplante Neustartzeit: Zeit= " + nextRestartTime.ToString("HH:mm");
-            }
-        }
-        
 
         private void LoadConfiguration()
         {
             LoadConfigurationFromFile();
+
         }
 
         private void LoadConfigurationFromFile()
@@ -138,6 +113,7 @@ namespace Minecraft_Server_Controll
             if (autoSaveEnabled && hasRestartTimes)
             {
                 UpdateNextRestartTime();
+
             }
 
             // Set the text and checked state of checkBox2 based on autoSaveEnabled and autoRestartType
@@ -208,7 +184,6 @@ namespace Minecraft_Server_Controll
             File.WriteAllLines(configFilePath, lines);
         }
 
-
         private void CreateDefaultConfigFile(string filePath)
         {
             string defaultConfig = $@"# Konfigurationsdatei für MineServerControl
@@ -277,67 +252,79 @@ max_backup_count=5";
                 Environment.Exit(0);
             }
         }
-
-        private void StopServer()
-        {
-            ClearTextBox();
-            process.StandardInput.WriteLine("stop");
-            process.StandardInput.Flush();
-            process.Kill();
-            ClearTextBox();
-        }
-
         private void StartServer()
         {
 
-                process = new Process();
-                process.StartInfo.FileName = "cmd.exe";
-                process.StartInfo.Arguments = arguments;
-                process.StartInfo.UseShellExecute = false;
-                process.StartInfo.RedirectStandardInput = true;
-                process.StartInfo.RedirectStandardOutput = true;
-                process.StartInfo.RedirectStandardError = true;
-                process.OutputDataReceived += ServerOutputDataReceived;
-                process.ErrorDataReceived += ServerErrorDataReceived;
-                process.StartInfo.WorkingDirectory = workingDirectory;
-                UpdateNextRestartTime();
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
+            process = new Process();
+            process.StartInfo.FileName = "cmd.exe";
+            process.StartInfo.Arguments = arguments;
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardInput = true;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
+            process.OutputDataReceived += ServerOutputDataReceived;
+            process.ErrorDataReceived += ServerErrorDataReceived;
+            process.StartInfo.WorkingDirectory = workingDirectory;
+            UpdateNextRestartTime();
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
-            
+
         }
-
-        private void StartAutoSaveTimer()
+        private void StopServer()
         {
-            restartTimer = new System.Timers.Timer();
-            restartTimer.Interval = 1000; // Setzen Sie den Timer-Intervall auf 1 Sekunde (1000 Millisekunden)
-            restartTimer.Elapsed += RestartTimerElapsed;
-            restartTimer.Start();
-        }
-
-        private void RestartTimerElapsed(object sender, ElapsedEventArgs e)
-        {
-        
-            // Überprüfen Sie die geplante Neustartzeit und führen Sie das Backup durch, wenn die Zeit erreicht ist
-            DateTime nextRestartTime = GetNextRestartTime();
-            if (nextRestartTime <= DateTime.Now)
+            if (process != null)
             {
-                PerformBackup();
-            }
-        }
-
-        private void UpdateNextRestartTimeLabel(string labelText)
-        {
-            if (labelNextRestart.InvokeRequired)
-            {
-                labelNextRestart.Invoke((MethodInvoker)(() => UpdateNextRestartTimeLabel(labelText)));
+                ClearTextBox();
+                process.StandardInput.WriteLine("stop");
+                process.StandardInput.Flush();
+                process.Kill();
+                ClearTextBox();
+                Debug.WriteLine("STOPMETHODE");
             }
             else
             {
-                labelNextRestart.Text = labelText;
+                // Hier kannst du eine Meldung ausgeben, dass der Server nicht gestartet wurde
+                MessageBox.Show("Der Server wurde noch nicht gestartet.");
             }
         }
+
+
+        private void UpdateNextRestartTime()
+        {
+            DateTime nextRestartTime = GetNextRestartTime();
+
+            if (!autoSaveEnabled)
+            {
+                UpdateNextRestartTimeLabel("Nächste geplante Neustartzeit: AutoSave deaktiviert");
+                return;
+            }
+
+            if (autoRestartType.ToLower() == "interval")
+            {
+                // Aktualisiere die nächste Neustartzeit basierend auf dem aktuellen Zeitpunkt und dem Neustellintervall
+                DateTime nextRestart = DateTime.Now.AddHours(restartInterval);
+                UpdateNextRestartTimeLabel("Nächste geplante Neustartzeit: Interval= " + nextRestart.ToString("HH:mm"));
+            }
+            else if (autoRestartType.ToLower() == "time")
+            {
+                UpdateNextRestartTimeLabel("Nächste geplante Neustartzeit: Zeit= " + nextRestartTime.ToString("HH:mm"));
+            }
+        }
+        // Methode, um das Label für die nächste geplante Neustartzeit im Haupt-UI-Thread zu aktualisieren
+        private void UpdateNextRestartTimeLabel(string labelText)
+        {
+            if (label2.InvokeRequired)
+            {
+                label2.Invoke((MethodInvoker)(() => UpdateNextRestartTimeLabel(labelText)));
+            }
+            else
+            {
+                label2.Text = labelText;
+            }
+        }
+
 
         private DateTime GetNextRestartTime()
         {
@@ -395,31 +382,6 @@ max_backup_count=5";
         }
 
 
-        private void button1_Click(object sender, EventArgs e)
-        {
-            if (!IsServerRunning())
-            {
-                StartServer();
-                Debug.WriteLine("StartSERVER3");
-            }
-            else
-            {
-                MessageBox.Show("Der Server läuft bereits.");
-            }
-        }
-
-        private void button7_Click(object sender, EventArgs e)
-        {
-            if (IsServerRunning())
-            {
-                StopServer();
-            }
-            else
-            {
-                MessageBox.Show("Der Server läuft nicht. Starte den Server zuerst, bevor du ihn stoppst.");
-            }
-        }
-
         private void ClearTextBox()
         {
             if (textBox2.InvokeRequired)
@@ -467,13 +429,6 @@ max_backup_count=5";
             }
         }
 
-        private void button2_Click(object sender, EventArgs e)
-        {
-            string command = textBox1.Text.Trim();
-            ExecuteCommand(command);
-            textBox1.Clear();
-        }
-
         private void ExecuteCommand(string command)
         {
             if (!string.IsNullOrEmpty(command))
@@ -513,56 +468,6 @@ max_backup_count=5";
             }
         }
 
-        private void button3_Click(object sender, EventArgs e)
-        {
-            if (IsServerRunning())
-            {
-                StopServer();
-                System.Threading.Thread.Sleep(5000);
-                StartServer();
-                Debug.WriteLine("StartSERVER4");
-            }
-            else
-            {
-                MessageBox.Show("Der Server läuft nicht. Starte den Server zuerst, bevor du ihn neu startest.");
-            }
-        }
-
-        private void button4_Click(object sender, EventArgs e)
-        {
-            PerformBackup();
-        }
-
-        private async void PerformBackup()
-        {
-
-            // Stoppe den Server
-            StopServer();
-            while (IsServerRunning())
-            {
-                await Task.Delay(100); // Kurze Pause, um der Benutzeroberfläche zu ermöglichen, zu reagieren
-            }
-
-            // Warte zusätzliche 5 Sekunden, um sicherzustellen, dass alle Prozesse beendet wurden
-            await Task.Delay(5000);
-
-            // Führe das Backup durch
-            await Task.Run(() =>
-            {
-                BackupLogsFolder();
-                BackupWorldFolder();
-            });
-
-            // Starte den Server wieder
-            StartServer();
-            UpdateNextRestartTime(); // Aktualisiere das Label für die nächste geplante Neustartzeit
-
-            // Lösche alte Backups
-            DeleteOldBackups("world_backup", maxBackupCount);
-            DeleteOldBackups("logs_backup", maxBackupCount);
-
-        }
-
         private void BackupLogsFolder()
         {
             string sourceFolderPath = Path.Combine(workingDirectory, "logs");
@@ -590,27 +495,6 @@ max_backup_count=5";
                 MessageBox.Show("Der 'logs'-Ordner existiert nicht im Arbeitsverzeichnis.");
             }
         }
-
-        private void BackupWorldFolder()
-        {
-            string sourceFolderPath = Path.Combine(workingDirectory, "world");
-            string destinationFolderPath = Path.Combine(backupFolderPath, "world_backup");
-
-            if (Directory.Exists(sourceFolderPath))
-            {
-                // Erstelle einen eindeutigen Ordner für dieses Backup mit Datum und Uhrzeit
-                string backupFolderName = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string backupDestinationFolderPath = Path.Combine(destinationFolderPath, backupFolderName);
-                CopyFolder(sourceFolderPath, backupDestinationFolderPath);
-
-
-            }
-            else
-            {
-                MessageBox.Show("Der 'world'-Ordner existiert nicht im Arbeitsverzeichnis.");
-            }
-        }
-
         private void CopyFolder(string sourceFolder, string destinationFolder)
         {
             Directory.CreateDirectory(destinationFolder);
@@ -633,14 +517,127 @@ max_backup_count=5";
 
 
         }
+        private void BackupWorldFolder()
+        {
+            string sourceFolderPath = Path.Combine(workingDirectory, "world");
+            string destinationFolderPath = Path.Combine(backupFolderPath, "world_backup");
+
+            if (Directory.Exists(sourceFolderPath))
+            {
+                // Erstelle einen eindeutigen Ordner für dieses Backup mit Datum und Uhrzeit
+                string backupFolderName = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string backupDestinationFolderPath = Path.Combine(destinationFolderPath, backupFolderName);
+                CopyFolder(sourceFolderPath, backupDestinationFolderPath);
 
 
+            }
+            else
+            {
+                MessageBox.Show("Der 'world'-Ordner existiert nicht im Arbeitsverzeichnis.");
+            }
+        }
+
+        private async void PerformBackup()
+        {
+            // Stoppe den Server
+            StopServer();
+            while (IsServerRunning())
+            {
+                await Task.Delay(100); // Kurze Pause, um der Benutzeroberfläche zu ermöglichen, zu reagieren
+            }
+
+            // Warte zusätzliche 5 Sekunden, um sicherzustellen, dass alle Prozesse beendet wurden
+            await Task.Delay(5000);
+
+            // Führe das Backup durch
+            await Task.Run(() =>
+            {
+                BackupLogsFolder();
+                BackupWorldFolder();
+            });
+            await Task.Delay(100);
+            UpdateNextRestartTime();
+            await Task.Delay(100);
+            LoadConfigurationFromFile();
+            await Task.Delay(100);
+            // Starte den Server wieder
+            StartServer();
+            // Aktualisiere das Label für die nächste geplante Neustartzeit
+
+            // Lösche alte Backups
+            DeleteOldBackups("world_backup", maxBackupCount);
+            DeleteOldBackups("logs_backup", maxBackupCount);
+        }
+        private void nextAutoBackup()
+        {
+            if (!autoSaveEnabled)
+            {
+                // AutoSave ist deaktiviert, daher kein Backup oder Neustart geplant.
+                return;
+            }
+
+            DateTime now = DateTime.Now;
+            DateTime nextActionTime = GetNextRestartTime();
+
+            if (nextActionTime == DateTime.MaxValue)
+            {
+                // Es wurden keine gültigen Zeiten für den Neustart/Backup festgelegt, also nichts zu tun.
+                return;
+            }
+
+            // Berechne die Differenz zwischen der nächsten geplanten Aktion (Backup oder Neustart) und der aktuellen Zeit
+            TimeSpan timeDifference = nextActionTime - now;
+
+            // Überprüfe, ob die Zeitdifferenz kleiner oder gleich 0 ist (d.h. die geplante Aktion ist jetzt oder bereits vergangen)
+            if (timeDifference <= TimeSpan.Zero)
+            {
+                // Führe das Backup durch
+                PerformBackup();
+
+                // Aktualisiere die nächste geplante Aktion (Backup oder Neustart)
+                nextActionTime = GetNextRestartTime();
+
+                // Berechne die neue Zeitdifferenz für die nächste Aktion
+                timeDifference = nextActionTime - now;
+            }
+
+            // Starte einen Timer, um die nächste Aktion (Backup oder Neustart) auszuführen, wenn die Zeitdifferenz erreicht ist
+            if (restartTimer == null)
+            {
+                restartTimer = new System.Timers.Timer(timeDifference.TotalMilliseconds);
+                restartTimer.Elapsed += (sender, e) => OnRestartTimerElapsed(sender, e, nextActionTime);
+                restartTimer.AutoReset = false;
+                restartTimer.Start();
+            }
+            else
+            {
+                restartTimer.Stop();
+                restartTimer.Interval = timeDifference.TotalMilliseconds;
+                restartTimer.Start();
+            }
+        }
+        private void OnRestartTimerElapsed(object sender, ElapsedEventArgs e, DateTime nextActionTime)
+        {
+            // Der Timer ist abgelaufen, führe die nächste geplante Aktion (Backup oder Neustart) aus
+            PerformBackup();
+
+            // Aktualisiere die nächste geplante Aktion (Backup oder Neustart) für den Timer
+            nextActionTime = GetNextRestartTime();
+
+            // Berechne die neue Zeitdifferenz für die nächste Aktion
+            TimeSpan timeDifference = nextActionTime - DateTime.Now;
+
+            // Starte den Timer erneut für die nächste geplante Aktion
+            restartTimer.Interval = timeDifference.TotalMilliseconds;
+            restartTimer.Start();
+        }
         private void DeleteOldBackups(string backupSubFolder, int maxBackupCount)
         {
             string backupFolder = Path.Combine(backupFolderPath, backupSubFolder);
 
             if (!Directory.Exists(backupFolder))
             {
+                Debug.WriteLine($"Der {backupSubFolder}-Ordner existiert nicht.");
                 return;
             }
 
@@ -650,22 +647,94 @@ max_backup_count=5";
             int backupCount = backupDirectories.Length;
             int backupsToDeleteCount = backupCount - maxBackupCount;
 
+            Debug.WriteLine($"Anzahl der vorhandenen Backups im {backupSubFolder}-Ordner: {backupCount}");
 
             if (backupsToDeleteCount <= 0)
             {
-         
+                Debug.WriteLine($"Es gibt weniger als {maxBackupCount} Backups im {backupSubFolder}-Ordner.");
                 return;
             }
 
             for (int i = 0; i < backupsToDeleteCount; i++)
             {
-        
+                Debug.WriteLine($"Lösche Backup-Ordner: {backupDirectories[i].Name}");
                 backupDirectories[i].Delete(true);
             }
 
-          
+            Debug.WriteLine($"Die ältesten {backupsToDeleteCount} Backups im {backupSubFolder}-Ordner wurden gelöscht.");
         }
 
+        private void button1_Click(object sender, EventArgs e)
+        {
+            if (!IsServerRunning())
+            {
+                StartServer();
+                Debug.WriteLine("StartSERVER3");
+            }
+            else
+            {
+                MessageBox.Show("Der Server läuft bereits.");
+            }
+        }
+
+        private void button7_Click(object sender, EventArgs e)
+        {
+            if (IsServerRunning())
+            {
+                StopServer();
+            }
+            else
+            {
+                MessageBox.Show("Der Server läuft nicht. Starte den Server zuerst, bevor du ihn stoppst.");
+            }
+        }
+        private void button2_Click(object sender, EventArgs e)
+        {
+            string command = textBox1.Text.Trim();
+            ExecuteCommand(command);
+            textBox1.Clear();
+        }
+        private void button3_Click(object sender, EventArgs e)
+        {
+            if (IsServerRunning())
+            {
+                StopServer();
+                System.Threading.Thread.Sleep(5000);
+                StartServer();
+                Debug.WriteLine("StartSERVER4");
+            }
+            else
+            {
+                MessageBox.Show("Der Server läuft nicht. Starte den Server zuerst, bevor du ihn neu startest.");
+            }
+        }
+        private async void button4_Click(object sender, EventArgs e)
+        {
+            // Stoppe den Server
+            StopServer();
+            while (IsServerRunning())
+            {
+                await Task.Delay(100); // Kurze Pause, um der Benutzeroberfläche zu ermöglichen, zu reagieren
+            }
+
+            // Warte zusätzliche 5 Sekunden, um sicherzustellen, dass alle Prozesse beendet wurden
+            await Task.Delay(5000);
+
+            // Führe das Backup durch
+            await Task.Run(() =>
+            {
+                BackupLogsFolder();
+                BackupWorldFolder();
+            });
+
+            // Starte den Server wieder
+            StartServer();
+            UpdateNextRestartTime(); // Aktualisiere das Label für die nächste geplante Neustartzeit
+
+            // Lösche alte Backups
+            DeleteOldBackups("world_backup", maxBackupCount);
+            DeleteOldBackups("logs_backup", maxBackupCount);
+        }
         private void button10_Click(object sender, EventArgs e)
         {
             string logsFolderPath = Path.Combine(workingDirectory, "logs");
@@ -679,7 +748,6 @@ max_backup_count=5";
                 MessageBox.Show("Der 'logs'-Ordner existiert nicht im Arbeitsverzeichnis.");
             }
         }
-
         private void button5_Click(object sender, EventArgs e)
         {
             string configFilePath = Path.Combine(backupFolderPath, "config.txt");
@@ -723,22 +791,15 @@ max_backup_count=5";
         private void button9_Click(object sender, EventArgs e)
         {
             LoadConfigurationFromFile();
-           // UpdateNextRestartTime(); // Aktualisiere das Label für die nächste geplante Neustartzeit
+            // UpdateNextRestartTime(); // Aktualisiere das Label für die nächste geplante Neustartzeit
             MessageBox.Show("MCC Optionen wurden neu geladen.");
         }
 
         private void button11_Click(object sender, EventArgs e)
         {
-            if (Directory.Exists(backupFolderPath))
-            {
-                Process.Start("explorer.exe", backupFolderPath);
-            }
-            else
-            {
-                MessageBox.Show("Der 'MCC_Backup'-Ordner existiert nicht.");
-            }
+            DeleteOldBackups("world_backup", maxBackupCount);
+            DeleteOldBackups("logs_backup", maxBackupCount);
         }
-
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
@@ -752,8 +813,7 @@ max_backup_count=5";
 
             // Aktualisiere das Label für die nächste geplante Neustartzeit
             UpdateNextRestartTime();
-            GetNextRestartTime();  
-
+            GetNextRestartTime();
 
         }
 
