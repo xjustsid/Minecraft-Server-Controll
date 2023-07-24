@@ -27,11 +27,28 @@ namespace Minecraft_Server_Controll
         private System.Timers.Timer restartTimer;
         private bool programStarted = false;
         private bool backupInProgress = false;
+        private Process serverProcess;
+        private bool isServerStopping = false;
+
+
 
         private bool IsServerRunning()
         {
-            return process != null && !process.HasExited;
+            if (serverProcess == null)
+            {
+                return false;
+            }
 
+            // Überprüfen, ob der Serverprozess tatsächlich noch aktiv ist
+            try
+            {
+                return !serverProcess.HasExited;
+            }
+            catch (InvalidOperationException)
+            {
+                // Wenn der Prozess bereits beendet wurde, wird eine InvalidOperationException ausgelöst.
+                return false;
+            }
         }
 
         public Form1()
@@ -39,6 +56,7 @@ namespace Minecraft_Server_Controll
             InitializeComponent();
             textBox2.ReadOnly = true;
             LoadConfiguration();
+
         }
 
 
@@ -46,11 +64,6 @@ namespace Minecraft_Server_Controll
         {
             programStarted = true;
 
-            // Rufe die Methode UpdateNextRestartTime() auf, um die Zeit im Label zu aktualisieren
-            UpdateNextRestartTime();
-
-            // Starte die automatische Sicherung und den Neustart
-            nextAutoBackup();
         }
 
         private void LoadConfiguration()
@@ -142,7 +155,6 @@ namespace Minecraft_Server_Controll
             }
 
             SaveConfigurationInternal();
-            UpdateNextRestartTime();
         }
         private void SaveConfigurationInternal()
         {
@@ -155,34 +167,33 @@ namespace Minecraft_Server_Controll
                 {
                     lines[i] = "keepalive=" + (checkBox1.Checked ? "true" : "false");
                 }
-                else if (lines[i].StartsWith("auto_restart="))
-                {
-                    if (checkBox2.Checked)
-                    {
-                        lines[i] = "auto_restart=" + (checkBox2.Text.Contains("Intervall") ? "interval" : "time");
-                    }
-                    else
-                    {
-                        lines[i] = "auto_restart=disabled";
-                    }
-                }
-                if (lines[i].StartsWith("auto_save_enabled="))
+                else if (lines[i].StartsWith("auto_save_enabled="))
                 {
                     lines[i] = "auto_save_enabled=" + (checkBox2.Checked ? "true" : "false");
                 }
-                if (lines[i].StartsWith("max_backup_count="))
+                else if (lines[i].StartsWith("max_backup_count="))
                 {
                     lines[i] = "max_backup_count=" + maxBackupCount.ToString();
                 }
-
-                if (autoSaveEnabled)
+                else if (lines[i].StartsWith("server_pfad="))
                 {
-                    UpdateNextRestartTime();
+                    lines[i] = "server_pfad=" + workingDirectory;
+                }
+                else if (lines[i].StartsWith("StartCommand="))
+                {
+                    // Das StartCommand-Argument sollte nicht erneut ergänzt werden, wenn es bereits vorhanden ist
+                    // Der StartCommand enthält bereits "/k", wenn es sich um einen Befehl handelt.
+                    lines[i] = "StartCommand=" + arguments;
+                }
+                else if (lines[i].StartsWith("restart_times="))
+                {
+                    lines[i] = "restart_times=" + restartTimes;
                 }
             }
 
             File.WriteAllLines(configFilePath, lines);
         }
+
 
         private void CreateDefaultConfigFile(string filePath)
         {
@@ -192,7 +203,7 @@ namespace Minecraft_Server_Controll
 #Pfad zum Server
 server_pfad=C:\Pfad\zum\Server\{workingDirectory}
 
-#Startparameter für den Server (bsp für einen Server Fabric Server mit 4GB zuweisung)
+#Startparameter Für den Server (bsp für einen Server Fabric Server mit 4GB zuweisung)
 StartCommand=/k java -Xmx4G -jar fabric-server-launch.jar nogui
 
 # Dies ist der Standardordner, in dem alles gespeichert wird
@@ -254,7 +265,14 @@ max_backup_count=5";
         }
         private void StartServer()
         {
+            // Überprüfen, ob der Server bereits gestartet ist
+            if (IsServerRunning())
+            {
+                MessageBox.Show("Der Server läuft bereits.");
+                return;
+            }
 
+            // Erzeuge einen neuen Prozess für den Server
             process = new Process();
             process.StartInfo.FileName = "cmd.exe";
             process.StartInfo.Arguments = arguments;
@@ -265,15 +283,34 @@ max_backup_count=5";
             process.OutputDataReceived += ServerOutputDataReceived;
             process.ErrorDataReceived += ServerErrorDataReceived;
             process.StartInfo.WorkingDirectory = workingDirectory;
-            UpdateNextRestartTime();
+
+            // Starte den Prozess
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-
+            UpdateConfiguration();
         }
-        private void StopServer()
+
+
+
+
+        private async Task StopServer()
         {
+            // Wenn der Server bereits gestoppt wird, warten Sie, bis der Vorgang abgeschlossen ist
+            if (isServerStopping)
+            {
+                while (IsServerRunning())
+                {
+                    // Warte, bis der Server gestoppt ist
+                    await Task.Delay(30000);
+                }
+                return;
+            }
+
+            isServerStopping = true;
+
+            // Fügen Sie hier den Code hinzu, um den Server tatsächlich zu stoppen
             if (process != null)
             {
                 ClearTextBox();
@@ -281,13 +318,15 @@ max_backup_count=5";
                 process.StandardInput.Flush();
                 process.Kill();
                 ClearTextBox();
-                Debug.WriteLine("STOPMETHODE");
             }
             else
             {
                 // Hier kannst du eine Meldung ausgeben, dass der Server nicht gestartet wurde
-                MessageBox.Show("Der Server wurde noch nicht gestartet.");
+                MessageBox.Show("Der Server wurde noch nicht gestartet oder ist bereits gestoppt.");
             }
+
+            // Setzen Sie den Stoppstatus zurück, nachdem der Server gestoppt ist
+            isServerStopping = false;
         }
 
 
@@ -306,12 +345,15 @@ max_backup_count=5";
                 // Aktualisiere die nächste Neustartzeit basierend auf dem aktuellen Zeitpunkt und dem Neustellintervall
                 DateTime nextRestart = DateTime.Now.AddHours(restartInterval);
                 UpdateNextRestartTimeLabel("Nächste geplante Neustartzeit: Interval= " + nextRestart.ToString("HH:mm"));
+
             }
             else if (autoRestartType.ToLower() == "time")
             {
                 UpdateNextRestartTimeLabel("Nächste geplante Neustartzeit: Zeit= " + nextRestartTime.ToString("HH:mm"));
+     
             }
         }
+
         // Methode, um das Label für die nächste geplante Neustartzeit im Haupt-UI-Thread zu aktualisieren
         private void UpdateNextRestartTimeLabel(string labelText)
         {
@@ -429,34 +471,25 @@ max_backup_count=5";
             }
         }
 
-        private void ExecuteCommand(string command)
-        {
-            if (!string.IsNullOrEmpty(command))
-            {
-                if (command.ToLower() == "stop")
-                {
-                    ClearTextBox();
-                    process.StandardInput.WriteLine(command);
-                    process.StandardInput.Flush();
-                    process.Kill();
-                    ClearTextBox();
-                }
-                else
-                {
-                    process.StandardInput.WriteLine(command);
-                    process.StandardInput.Flush();
-                }
-            }
-        }
 
         private void SendCommandToServer(string command)
         {
-            string commandWithPrefix = "/" + command; // Füge das "/"-Präfix zum Befehl hinzu
+            if (process != null && !process.HasExited) // Prüfen, ob der Prozess existiert und noch nicht beendet wurde
+            {
+                string commandWithPrefix = "/" + command; // Füge das "/"-Präfix zum Befehl hinzu
 
-            // Sende den Befehl an den Server
-            process.StandardInput.WriteLine(commandWithPrefix);
-            process.StandardInput.Flush();
+                // Sende den Befehl an den Server
+                process.StandardInput.WriteLine(commandWithPrefix);
+                process.StandardInput.Flush();
+            }
+            else
+            {
+                // Der Server läuft nicht, gib eine Meldung aus oder füge den Befehl in die Textbox ein
+                // Hier wird der Befehl einfach in die Textbox eingefügt
+                textBox1.AppendText(command + Environment.NewLine);
+            }
         }
+
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
@@ -631,6 +664,37 @@ max_backup_count=5";
             restartTimer.Interval = timeDifference.TotalMilliseconds;
             restartTimer.Start();
         }
+
+        private async void nextShoutout()
+        {
+            // Hole die nächste geplante Neustartzeit
+            DateTime nextRestartTime = GetNextRestartTime();
+
+            // Berechne die Zeitdifferenz zwischen der aktuellen Zeit und der nächsten geplanten Neustartzeit
+            TimeSpan timeDifference = nextRestartTime - DateTime.Now;
+
+            // Zeiten für die Warnungen berechnen
+            int[] warningIntervals = { 60, 30, 15, 5 }; // Die Zeitintervalle für die Warnungen in Minuten
+
+            foreach (int interval in warningIntervals)
+            {
+                TimeSpan warningTimeDifference = timeDifference - TimeSpan.FromMinutes(interval);
+                if (warningTimeDifference.TotalMinutes > 0)
+                {
+                    await Task.Delay(warningTimeDifference); // Warte bis zur nächsten Warnung
+                    SendShoutoutWarning(interval);
+                }
+            }
+        }
+
+
+        private void SendShoutoutWarning(int minutesUntilRestart)
+        {
+            // Den Befehl "say" an den Server senden, um den Spielern eine Warnung zu geben
+            string message = $"Server wird in {minutesUntilRestart} Minuten neu gestartet!";
+            SendCommandToServer($"say {message}");
+        }
+
         private void DeleteOldBackups(string backupSubFolder, int maxBackupCount)
         {
             string backupFolder = Path.Combine(backupFolderPath, backupSubFolder);
@@ -664,6 +728,20 @@ max_backup_count=5";
             Debug.WriteLine($"Die ältesten {backupsToDeleteCount} Backups im {backupSubFolder}-Ordner wurden gelöscht.");
         }
 
+        private void UpdateConfiguration()
+        {
+            //Lade die Konfigurationsdatei
+            LoadConfigurationFromFile();
+            //Berechne die nächste Neustartzeit
+            GetNextRestartTime();
+            // Rufe die Methode UpdateNextRestartTime() auf, um die Zeit im Label zu aktualisieren
+            UpdateNextRestartTime();         
+            //Starte den Shoutout Methode 
+            nextShoutout();
+             // Starte die automatische Sicherung und den Neustart
+            nextAutoBackup();
+        }
+
         private void button1_Click(object sender, EventArgs e)
         {
             if (!IsServerRunning())
@@ -679,19 +757,12 @@ max_backup_count=5";
 
         private void button7_Click(object sender, EventArgs e)
         {
-            if (IsServerRunning())
-            {
                 StopServer();
-            }
-            else
-            {
-                MessageBox.Show("Der Server läuft nicht. Starte den Server zuerst, bevor du ihn stoppst.");
-            }
         }
         private void button2_Click(object sender, EventArgs e)
         {
             string command = textBox1.Text.Trim();
-            ExecuteCommand(command);
+            SendCommandToServer(command);
             textBox1.Clear();
         }
         private void button3_Click(object sender, EventArgs e)
@@ -790,7 +861,7 @@ max_backup_count=5";
 
         private void button9_Click(object sender, EventArgs e)
         {
-            LoadConfigurationFromFile();
+            UpdateConfiguration();
             // UpdateNextRestartTime(); // Aktualisiere das Label für die nächste geplante Neustartzeit
             MessageBox.Show("MCC Optionen wurden neu geladen.");
         }
@@ -805,12 +876,13 @@ max_backup_count=5";
             {
                 MessageBox.Show("Der 'MCC_Backup'-Ordner existiert nicht.");
             }
-        
-    }
+
+        }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
             SaveConfigurationInternal();
+
         }
 
 

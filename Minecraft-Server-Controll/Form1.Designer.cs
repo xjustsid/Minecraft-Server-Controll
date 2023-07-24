@@ -150,11 +150,13 @@
             // button9
             // 
             button9.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            button9.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             button9.Location = new Point(975, 131);
             button9.Name = "button9";
             button9.Size = new Size(137, 25);
             button9.TabIndex = 25;
-            button9.Text = "MCC Optionen Neuladen";
+            button9.Text = "MCC Neuladen";
+            button9.TextAlign = ContentAlignment.TopCenter;
             button9.UseVisualStyleBackColor = true;
             button9.Click += button9_Click;
             // 
@@ -264,6 +266,7 @@
             Controls.Add(button7);
             Controls.Add(textBox2);
             Controls.Add(button1);
+            Cursor = Cursors.Default;
             Name = "Form1";
             Text = "MineServer Controll";
             Load += Form1_Load;
